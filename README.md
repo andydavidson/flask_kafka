@@ -34,9 +34,13 @@ app = Flask(__name__)
 
 INTERRUPT_EVENT = Event()
 
+kafka_params = {
+    "bootstrap.servers": ",".join(["localhost:9092"]),
+    "group.id": "consumer-grp-id"
+}
+
 bus = FlaskKafka(INTERRUPT_EVENT,
-                 bootstrap_servers=",".join(["localhost:9092"]),
-                 group_id="consumer-grp-id"
+                 **kafka_params
                  )
 
 

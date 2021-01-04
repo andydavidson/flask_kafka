@@ -1,4 +1,4 @@
-from kafka import KafkaConsumer
+from confluent_kafka import Consumer, KafkaError
 import threading
 import traceback
 import logging
@@ -7,7 +7,7 @@ import signal
 
 class FlaskKafka():
     def __init__(self, interrupt_event, **kw):
-        self.consumer = KafkaConsumer(**kw)
+        self.consumer = Consumer(**kw)
         self.handlers={}
         self.interrupt_event = interrupt_event
         logger = logging.getLogger('flask-kafka-consumer')
@@ -33,9 +33,9 @@ class FlaskKafka():
 
     def _run_handlers(self, msg):
         try:
-            handlers = self.handlers[msg.topic]
+            handlers = self.handlers[msg.topic()]
             for handler in handlers:
-                handler(msg)
+                handler(msg.value())
             self.consumer.commit()
         except Exception as e:
             self.logger.critical(str(e), exc_info=1)
@@ -47,13 +47,24 @@ class FlaskKafka():
         self.consumer.close()
         sys.exit(0)
 
+    def consume(self, consumer, timeout):
+        while True:
+            message = consumer.poll(timeout)
+            if message is None:
+                continue
+            if message.error():
+                print("Consumer error: {}".format(message.error()))
+                continue
+            yield message
+        self.consumer.close()
 
     def _start(self):
-        self.consumer.subscribe(topics=tuple(self.handlers.keys()))
-        self.logger.info("starting consumer...registered signterm")
+        self.logger.info("Topics are: {}".format(list(self.handlers.keys())))
+        self.consumer.subscribe(topics=(list(self.handlers.keys())))
+        self.logger.info("starting confluent_kafka consumer...registered signterm")
 
-        for msg in self.consumer:
-            self.logger.debug("TOPIC: {}, PAYLOAD: {}".format(msg.topic, msg.value))
+        for msg in self.consume(self.consumer, 10.0):
+            self.logger.debug("TOPIC: {}, PAYLOAD: {}".format(msg.topic(), msg.value()))
             self._run_handlers(msg)
             # stop the consumer
             if self.interrupt_event.is_set():
@@ -68,7 +79,7 @@ class FlaskKafka():
 
     
     def _run(self):
-        self.logger.info(" * The flask Kafka application is consuming")
+        self.logger.info(" * The flask Kafka application is starting")
         t = threading.Thread(target=self._start)
         t.start()
 

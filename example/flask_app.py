@@ -7,9 +7,13 @@ app = Flask(__name__)
 
 INTERRUPT_EVENT = Event()
 
+kafka_params = {
+    "bootstrap.servers": ",".join(["localhost:9092"]),
+    "group.id": "consumer-grp-id"
+}
+
 bus = FlaskKafka(INTERRUPT_EVENT,
-                 bootstrap_servers=",".join(["localhost:9092"]),
-                 group_id="consumer-grp-id"
+                 **kafka_params
                  )
 
 # Register termination listener
@@ -21,7 +25,7 @@ def listen_kill_server():
 
 
 # Handle message received from a Kafka topic
-@bus.handle('reaper-mpesa')
+@bus.handle('test-topic')
 def test_topic_handler(msg):
     print("consumed {} from test-topic".format(msg))
 
